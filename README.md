@@ -76,7 +76,7 @@ You will need:
 Clone this repository and install dependencies using `uv` (or standard `pip`):
 
 ```bash
-git clone https://github.com/yourusername/wa-fuse.git
+git clone https://github.com/pl402/wa-fuse.git
 cd wa-fuse
 
 # Using uv (fastest)
@@ -202,4 +202,4 @@ Distributed under the [MIT License](LICENSE). Free for personal and commercial u
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/yourusername/wa-fuse/issues).
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/pl402/wa-fuse/issues).

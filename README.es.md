@@ -76,7 +76,7 @@ Necesitarás:
 Clona este repositorio e instala las dependencias:
 
 ```bash
-git clone https://github.com/tu-usuario/wa-fuse.git
+git clone https://github.com/pl402/wa-fuse.git
 cd wa-fuse
 
 # Usando uv (el más rápido y recomendado)
@@ -202,4 +202,4 @@ Distribuido bajo la [Licencia MIT](LICENSE). Libre para uso personal y comercial
 
 ## 🤝 Contribuciones
 
-¡Las contribuciones, reportes de problemas y sugerencias son bienvenidas! Visita la [sección de issues](https://github.com/tu-usuario/wa-fuse/issues).
+¡Las contribuciones, reportes de problemas y sugerencias son bienvenidas! Visita la [sección de issues](https://github.com/pl402/wa-fuse/issues).
