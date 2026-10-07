@@ -6,8 +6,8 @@ and inserts them cleanly into the merged database.
 from pathlib import Path
 import sqlite3
 import datetime
-from wa_backup.android_db import AndroidDB
-from wa_backup.crypto import decrypt_android_backup, encrypt_android_backup
+from wa_fuse.android_db import AndroidDB
+from wa_fuse.crypto import decrypt_android_backup, encrypt_android_backup
 
 LAST_BACKUP_TIMESTAMP_MS = 1791309212767  # 2026-10-06 10:53:32
 

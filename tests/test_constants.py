@@ -1,4 +1,4 @@
-from wa_backup.constants import (
+from wa_fuse.constants import (
     apple_time_to_unix_ms,
     unix_ms_to_apple_time,
     APPLE_EPOCH_OFFSET,

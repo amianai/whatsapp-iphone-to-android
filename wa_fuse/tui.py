@@ -23,12 +23,12 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from wa_backup.android_db import AndroidDB
-from wa_backup.crypto import decrypt_android_backup, encrypt_android_backup
-from wa_backup.ios_extractor import IOSExtractor
-from wa_backup.merger import BackupMerger
-from wa_backup.merge_incremental import merge_incremental_messages
-from wa_backup.i18n import t, set_language, get_language
+from wa_fuse.android_db import AndroidDB
+from wa_fuse.crypto import decrypt_android_backup, encrypt_android_backup
+from wa_fuse.ios_extractor import IOSExtractor
+from wa_fuse.merger import BackupMerger
+from wa_fuse.merge_incremental import merge_incremental_messages
+from wa_fuse.i18n import t, set_language, get_language
 
 console = Console()
 

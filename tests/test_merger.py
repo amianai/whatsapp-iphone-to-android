@@ -1,8 +1,8 @@
 import sqlite3
 from pathlib import Path
-from wa_backup.android_db import AndroidDB
-from wa_backup.ios_extractor import IOSExtractor
-from wa_backup.merger import BackupMerger
+from wa_fuse.android_db import AndroidDB
+from wa_fuse.ios_extractor import IOSExtractor
+from wa_fuse.merger import BackupMerger
 from tests.test_ios_extractor import create_synthetic_ios_db
 from tests.test_android_db import create_synthetic_android_db
 

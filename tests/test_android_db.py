@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from wa_backup.android_db import AndroidDB
+from wa_fuse.android_db import AndroidDB
 
 
 def create_synthetic_android_db(db_path: Path):

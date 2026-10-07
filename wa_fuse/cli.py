@@ -8,11 +8,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from wa_backup.android_db import AndroidDB
-from wa_backup.crypto import decrypt_android_backup, encrypt_android_backup
-from wa_backup.i18n import get_language, set_language, t
-from wa_backup.ios_extractor import IOSExtractor
-from wa_backup.merger import BackupMerger
+from wa_fuse.android_db import AndroidDB
+from wa_fuse.crypto import decrypt_android_backup, encrypt_android_backup
+from wa_fuse.i18n import get_language, set_language, t
+from wa_fuse.ios_extractor import IOSExtractor
+from wa_fuse.merger import BackupMerger
 
 console = Console()
 
@@ -156,7 +156,7 @@ def cmd_pipeline(args):
 
 
 def cmd_wizard(args):
-    from wa_backup.tui import start_wizard
+    from wa_fuse.tui import start_wizard
     start_wizard(lang=getattr(args, "lang", None))
 
 
@@ -170,8 +170,22 @@ def main():
             set_language(arg.split("=", 1)[1])
             break
 
-    if len(sys.argv) == 1:
-        from wa_backup.tui import start_wizard
+    # If no subcommand was provided (or only --lang was given), launch interactive wizard
+    filtered_args = []
+    skip_next = False
+    for a in sys.argv[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if a in ("--lang", "-l"):
+            skip_next = True
+            continue
+        if a.startswith("--lang="):
+            continue
+        filtered_args.append(a)
+
+    if not filtered_args:
+        from wa_fuse.tui import start_wizard
         start_wizard()
         return
 

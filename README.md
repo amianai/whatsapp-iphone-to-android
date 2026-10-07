@@ -1,4 +1,4 @@
-# 📱 WhatsApp Backup Merger (iOS ➔ Android)
+# ⚡ wa-fuse: WhatsApp Backup Merger (iOS ➔ Android)
 
 <p align="center">
   <a href="README.md"><b>🇺🇸 English</b></a> • <a href="README.es.md"><b>🇪🇸 Español</b></a>
@@ -30,7 +30,7 @@ At approximately ~69% progress, WhatsApp for Android concludes sequential messag
 2. Media metadata reindexing (`message_media`).
 3. Thread collision and multi-account migration (`local_chat_db_lid_migration`).
 
-This tool eliminates all root causes of the 69% crash:
+**wa-fuse** eliminates all root causes of the 69% crash:
 
 | Failure Cause | What Happened | How We Fix It |
 | :--- | :--- | :--- |
@@ -50,7 +50,8 @@ This tool eliminates all root causes of the 69% crash:
 * **🔐 Crypt14 & Crypt15 Encryption:** Natively decrypts and re-encrypts Android backups using modern 64-hex root keys, cloning official Protobuf varint headers.
 * **📥 Zero-Loss Incremental Merge:** Allows you to extract and incorporate messages received on your phone *today* before restoring, preventing any message loss.
 * **📸 Media Migration:** Copies photos, videos, voice notes, audio, GIFs, and documents into the official Android directory structure (`Android/media/com.whatsapp/WhatsApp/Media/`).
-* **🧙 Interactive TUI Wizard:** Step-by-step terminal UI (`wizard.py`) with automatic USB/MTP/ADB device detection and integrity diagnostics.
+* **🧙 Interactive TUI Wizard:** Step-by-step terminal UI with automatic USB/MTP/ADB device detection, clipboard key integration, and integrity diagnostics.
+* **🌐 Bilingual Support:** Native English and Spanish user interface and documentation with automatic locale detection.
 
 ---
 
@@ -58,10 +59,9 @@ This tool eliminates all root causes of the 69% crash:
 
 You will need:
 
-1. **iPhone Backup:**
-   * An unencrypted local iTunes/Finder backup folder (containing `Manifest.db`), **OR**
-   * Extracted `ChatStorage.sqlite` (and optionally the `Media/` folder).
-2. **Android Backup:**
+1. **iPhone WhatsApp Backup:**
+   * An unencrypted local iPhone backup containing `ChatStorage.sqlite` and the `Message` media directory, OR a standalone `ChatStorage.sqlite` file.
+2. **Android WhatsApp Backup:**
    * Your `msgstore.db.crypt14` or `msgstore.db.crypt15` file (from `Android/media/com.whatsapp/WhatsApp/Databases/`).
 3. **64-Digit Hex Encryption Key:**
    * Generated when enabling "End-to-End Encrypted Backup" in WhatsApp (**Settings > Chats > Chat backup > End-to-end encrypted backup**).
@@ -76,8 +76,8 @@ You will need:
 Clone this repository and install dependencies using `uv` (or standard `pip`):
 
 ```bash
-git clone https://github.com/yourusername/wa-backup.git
-cd wa-backup
+git clone https://github.com/yourusername/wa-fuse.git
+cd wa-fuse
 
 # Using uv (fastest)
 uv sync
@@ -93,12 +93,12 @@ pip install -e .
 Launch the interactive terminal assistant:
 
 ```bash
-./wizard.py
-# or: uv run wa-wizard
+./wa-fuse
+# or: uv run wa-fuse
 
 # Explicitly choose language (English / Spanish):
-./wizard.py --lang en
-./wizard.py --lang es
+./wa-fuse --lang en
+./wa-fuse --lang es
 ```
 
 > **Tip:** You can also press `L` in the wizard's main menu at any time to instantly toggle between English and Spanish.
@@ -118,7 +118,7 @@ If you prefer command-line automation:
 
 ### Full Pipeline in One Command
 ```bash
-uv run wa-backup pipeline \
+uv run wa-fuse pipeline \
   --ios /path/to/ChatStorage.sqlite \
   --android-crypt /path/to/msgstore.db.crypt15 \
   --key "YOUR_64_CHARACTER_HEX_KEY" \
@@ -129,7 +129,7 @@ uv run wa-backup pipeline \
 
 1. **Decrypt Android Backup:**
    ```bash
-   uv run wa-backup decrypt \
+   uv run wa-fuse decrypt \
      --key "YOUR_64_CHARACTER_HEX_KEY" \
      --input msgstore.db.crypt15 \
      --output msgstore_decrypted.db
@@ -137,7 +137,7 @@ uv run wa-backup pipeline \
 
 2. **Merge iPhone Database into Android SQLite:**
    ```bash
-   uv run wa-backup merge \
+   uv run wa-fuse merge \
      --ios /path/to/ChatStorage.sqlite \
      --android-db msgstore_decrypted.db \
      --android-media ./output/WhatsApp/Media
@@ -145,7 +145,7 @@ uv run wa-backup pipeline \
 
 3. **Re-Encrypt Merged Database to crypt15:**
    ```bash
-   uv run wa-backup encrypt \
+   uv run wa-fuse encrypt \
      --key "YOUR_64_CHARACTER_HEX_KEY" \
      --input msgstore_decrypted.db \
      --output ./output/msgstore.db.crypt15 \
@@ -202,4 +202,4 @@ Distributed under the [MIT License](LICENSE). Free for personal and commercial u
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/yourusername/wa-backup/issues).
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/yourusername/wa-fuse/issues).

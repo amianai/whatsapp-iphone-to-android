@@ -1,4 +1,4 @@
-from wa_backup.cli import main
+from wa_fuse.cli import main
 
 if __name__ == "__main__":
     main()

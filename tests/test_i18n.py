@@ -1,6 +1,6 @@
 """Unit tests for internationalization (i18n) module."""
 
-from wa_backup.i18n import detect_system_language, get_language, set_language, t
+from wa_fuse.i18n import detect_system_language, get_language, set_language, t
 
 
 def test_set_and_get_language():

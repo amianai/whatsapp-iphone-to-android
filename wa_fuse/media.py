@@ -3,10 +3,10 @@
 from pathlib import Path
 import shutil
 from typing import TYPE_CHECKING
-from wa_backup.constants import ANDROID_MEDIA_SUBFOLDERS
+from wa_fuse.constants import ANDROID_MEDIA_SUBFOLDERS
 
 if TYPE_CHECKING:
-    from wa_backup.ios_extractor import IOSExtractor
+    from wa_fuse.ios_extractor import IOSExtractor
 
 
 class MediaMigrator:

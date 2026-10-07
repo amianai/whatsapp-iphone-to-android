@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from wa_backup.ios_extractor import IOSExtractor
+from wa_fuse.ios_extractor import IOSExtractor
 
 
 def create_synthetic_ios_db(db_path: Path):

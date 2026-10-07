@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point for the WhatsApp Migration Interactive TUI Wizard."""
+"""Convenience alias for wa-fuse interactive wizard."""
 
 import os
 import sys
@@ -10,10 +10,9 @@ venv_python = project_dir / ".venv" / "bin" / "python3"
 if venv_python.exists() and sys.executable != str(venv_python):
     os.execv(str(venv_python), [str(venv_python)] + sys.argv)
 
-# Add project root to path
 sys.path.insert(0, str(project_dir))
 
-from wa_backup.tui import start_wizard
+from wa_fuse.tui import start_wizard
 
 if __name__ == "__main__":
     lang = None

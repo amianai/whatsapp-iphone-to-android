@@ -12,7 +12,7 @@ venv_python = ROOT_DIR / ".venv" / "bin" / "python3"
 if venv_python.exists() and sys.executable != str(venv_python):
     os.execv(str(venv_python), [str(venv_python)] + sys.argv)
 
-from wa_backup.tui import detect_android_devices
+from wa_fuse.tui import detect_android_devices
 
 # Auto-detect source media
 default_src = Path(os.environ.get("WA_MEDIA_SRC", str(ROOT_DIR / "output" / "WhatsApp" / "Media")))

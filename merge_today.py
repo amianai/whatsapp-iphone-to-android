@@ -14,8 +14,8 @@ venv_python = ROOT_DIR / ".venv" / "bin" / "python3"
 if venv_python.exists() and sys.executable != str(venv_python):
     os.execv(str(venv_python), [str(venv_python)] + sys.argv)
 
-from wa_backup.crypto import decrypt_android_backup, encrypt_android_backup
-from wa_backup.merge_incremental import merge_incremental_messages
+from wa_fuse.crypto import decrypt_android_backup, encrypt_android_backup
+from wa_fuse.merge_incremental import merge_incremental_messages
 
 ROOT_DIR = Path(__file__).parent.resolve()
 BACKUP_DIR = Path(os.environ.get("WA_OUTPUT_DIR", str(ROOT_DIR / "output")))

@@ -1,6 +1,6 @@
 import secrets
 from pathlib import Path
-from wa_backup.crypto import decrypt_android_backup, encrypt_android_backup
+from wa_fuse.crypto import decrypt_android_backup, encrypt_android_backup
 
 
 def test_crypto_roundtrip(tmp_path):

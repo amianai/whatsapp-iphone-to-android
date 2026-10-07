@@ -1,8 +1,8 @@
 import sqlite3
 from pathlib import Path
-from wa_backup.android_db import AndroidDB
-from wa_backup.ios_extractor import IOSExtractor
-from wa_backup.merger import BackupMerger
+from wa_fuse.android_db import AndroidDB
+from wa_fuse.ios_extractor import IOSExtractor
+from wa_fuse.merger import BackupMerger
 
 
 def test_status_jids_filtered_and_media_complete(tmp_path):

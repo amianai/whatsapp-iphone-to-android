@@ -3,9 +3,9 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
-from wa_backup.android_db import AndroidDB
-from wa_backup.ios_extractor import IOSExtractor
-from wa_backup.media import MediaMigrator
+from wa_fuse.android_db import AndroidDB
+from wa_fuse.ios_extractor import IOSExtractor
+from wa_fuse.media import MediaMigrator
 
 
 @dataclass

@@ -9,7 +9,7 @@ import shutil
 import sqlite3
 from typing import Generator
 
-from wa_backup.constants import apple_time_to_unix_ms, IOS_TO_ANDROID_MSG_TYPE
+from wa_fuse.constants import apple_time_to_unix_ms, IOS_TO_ANDROID_MSG_TYPE
 
 
 @dataclass
