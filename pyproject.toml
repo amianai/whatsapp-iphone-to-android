@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wa-backup"
+version = "1.0.0"
+description = "Comprehensive WhatsApp backup merger: seamlessly merge iPhone (iOS) and Android chat histories into a single restored database."
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Elias Portugal", email = "portugal402@gmail.com" }
+]
+keywords = [
+    "whatsapp",
+    "backup",
+    "migration",
+    "merge",
+    "ios-to-android",
+    "crypt15",
+    "crypt14",
+    "sqlite",
+    "android"
+]
+requires-python = ">=3.12"
+dependencies = [
+    "cryptography>=50.0.2",
+    "rich>=15.0.0",
+    "wa-crypt-tools>=0.1.0",
+]
+
+[project.scripts]
+wa-backup = "wa_backup.cli:main"
+wa-wizard = "wa_backup.tui:start_wizard"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

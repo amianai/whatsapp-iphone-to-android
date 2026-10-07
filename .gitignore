@@ -1,0 +1,35 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.pytest_cache/
+
+# Virtual environments
+.venv/
+
+# Backup directories, databases, and keys (Sensitive user data)
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.crypt*
+*.key
+*.log
+ios_backup/
+android_backup/
+today_backup/
+android_today/
+resultado/
+output/
+wa_merged_output/
+WhatsApp/
+Media/
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
