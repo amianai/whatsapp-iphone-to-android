@@ -16,8 +16,17 @@ sys.path.insert(0, str(project_dir))
 from wa_backup.tui import start_wizard
 
 if __name__ == "__main__":
+    lang = None
+    for idx, arg in enumerate(sys.argv):
+        if arg in ("--lang", "-l") and idx + 1 < len(sys.argv):
+            lang = sys.argv[idx + 1]
+            break
+        elif arg.startswith("--lang="):
+            lang = arg.split("=", 1)[1]
+            break
+
     try:
-        start_wizard()
+        start_wizard(lang=lang)
     except KeyboardInterrupt:
-        print("\n\nOperación cancelada por el usuario.")
+        print("\n\nOperation cancelled / Operación cancelada.")
         sys.exit(0)

@@ -95,7 +95,13 @@ Lanza el asistente interactivo en la terminal:
 ```bash
 ./wizard.py
 # o bien: uv run wa-wizard
+
+# Especificar idioma explícitamente (Español / Inglés):
+./wizard.py --lang es
+./wizard.py --lang en
 ```
+
+> **Consejo:** También puedes presionar `L` en el menú principal del asistente en cualquier momento para alternar instantáneamente entre español e inglés.
 
 El asistente te guiará en:
 1. Detectar o seleccionar tu respaldo de iPhone y el `.crypt15` de Android.

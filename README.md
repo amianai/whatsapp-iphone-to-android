@@ -95,7 +95,13 @@ Launch the interactive terminal assistant:
 ```bash
 ./wizard.py
 # or: uv run wa-wizard
+
+# Explicitly choose language (English / Spanish):
+./wizard.py --lang en
+./wizard.py --lang es
 ```
+
+> **Tip:** You can also press `L` in the wizard's main menu at any time to instantly toggle between English and Spanish.
 
 The wizard guides you through:
 1. Detecting or selecting your iPhone backup and Android `.crypt15`.

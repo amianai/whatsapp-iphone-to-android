@@ -1,36 +1,38 @@
 """Command-Line Interface (CLI) for WhatsApp Backup Merger."""
 
 import argparse
-import sys
 from pathlib import Path
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
+import sys
 
-from wa_backup.crypto import decrypt_android_backup, encrypt_android_backup
-from wa_backup.ios_extractor import IOSExtractor
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
 from wa_backup.android_db import AndroidDB
+from wa_backup.crypto import decrypt_android_backup, encrypt_android_backup
+from wa_backup.i18n import get_language, set_language, t
+from wa_backup.ios_extractor import IOSExtractor
 from wa_backup.merger import BackupMerger
 
 console = Console()
 
 
 def cmd_decrypt(args):
-    console.print(Panel("[bold green]Descifrando respaldo de Android[/bold green]"))
+    console.print(Panel(f"[bold green]{t('cli_decrypt_panel')}[/bold green]"))
     try:
         out = decrypt_android_backup(
             key_input=args.key,
             encrypted_path=Path(args.input),
             output_path=Path(args.output),
         )
-        console.print(f"[bold green]✓[/bold green] Base de datos descifrada guardada en: [cyan]{out}[/cyan]")
+        console.print(f"[bold green]{t('cli_decrypt_success', path=out)}[/bold green]")
     except Exception as e:
-        console.print(f"[bold red]Error al descifrar:[/bold red] {e}")
+        console.print(f"[bold red]{t('cli_decrypt_error', e=e)}[/bold red]")
         sys.exit(1)
 
 
 def cmd_encrypt(args):
-    console.print(Panel("[bold green]Re-cifrando base de datos para Android[/bold green]"))
+    console.print(Panel(f"[bold green]{t('cli_encrypt_panel')}[/bold green]"))
     try:
         ref_path = Path(args.reference) if args.reference else None
         out = encrypt_android_backup(
@@ -39,51 +41,51 @@ def cmd_encrypt(args):
             output_path=Path(args.output),
             reference_path=ref_path,
         )
-        console.print(f"[bold green]✓[/bold green] Archivo cifrado generado en: [cyan]{out}[/cyan]")
+        console.print(f"[bold green]{t('cli_encrypt_success', path=out)}[/bold green]")
     except Exception as e:
-        console.print(f"[bold red]Error al cifrar:[/bold red] {e}")
+        console.print(f"[bold red]{t('cli_encrypt_error', e=e)}[/bold red]")
         sys.exit(1)
 
 
 def cmd_inspect_ios(args):
-    account_type = "WhatsApp Business" if getattr(args, "business", False) else "WhatsApp Estándar"
-    console.print(Panel(f"[bold blue]Inspeccionando respaldo de iOS ({account_type})[/bold blue]"))
+    account_type = t("wa_business") if getattr(args, "business", False) else t("wa_standard")
+    console.print(Panel(f"[bold blue]{t('cli_inspect_ios', type=account_type)}[/bold blue]"))
     try:
         extractor = IOSExtractor(args.input, is_business=getattr(args, "business", False))
         chats = extractor.get_chats()
 
-        table = Table(title=f"Chats encontrados ({len(chats)} total)")
-        table.add_column("PK", style="dim")
-        table.add_column("JID", style="cyan")
-        table.add_column("Nombre / Contacto", style="green")
-        table.add_column("Mensajes", justify="right")
+        table = Table(title=t("cli_inspect_ios_title", count=len(chats)))
+        table.add_column(t("cli_inspect_ios_col_pk"), style="dim")
+        table.add_column(t("cli_inspect_ios_col_jid"), style="cyan")
+        table.add_column(t("cli_inspect_ios_col_name"), style="green")
+        table.add_column(t("cli_inspect_ios_col_msgs"), justify="right")
 
-        for c in chats[:25]: # Show first 25
-            table.add_row(str(c.pk), c.jid, c.name or "(Sin nombre)", str(c.message_count))
+        for c in chats[:25]:  # Show first 25
+            table.add_row(str(c.pk), c.jid, c.name or t("cli_inspect_ios_no_name"), str(c.message_count))
 
         console.print(table)
         if len(chats) > 25:
-            console.print(f"[dim]... y {len(chats) - 25} chats adicionales.[/dim]")
+            console.print(f"[dim]{t('cli_inspect_ios_more', count=len(chats) - 25)}[/dim]")
 
         # Count total messages
         msg_count = sum(1 for _ in extractor.iter_messages())
-        console.print(f"\n[bold]Total de mensajes en iOS:[/bold] {msg_count}")
+        console.print(f"\n[bold]{t('cli_inspect_ios_total_msgs', count=msg_count)}[/bold]")
         if extractor.media_dir:
-            console.print(f"[bold]Directorio multimedia:[/bold] [cyan]{extractor.media_dir}[/cyan]")
+            console.print(f"[bold]{t('cli_inspect_ios_media_dir', path=extractor.media_dir)}[/bold]")
 
     except Exception as e:
-        console.print(f"[bold red]Error al inspeccionar iOS:[/bold red] {e}")
+        console.print(f"[bold red]{t('cli_inspect_ios_error', e=e)}[/bold red]")
         sys.exit(1)
 
 
 def cmd_merge(args):
-    console.print(Panel("[bold yellow]Uniendo respaldo de iOS dentro de la base de Android[/bold yellow]"))
+    console.print(Panel(f"[bold yellow]{t('cli_merge_panel')}[/bold yellow]"))
     try:
         extractor = IOSExtractor(args.ios, is_business=getattr(args, "business", False))
         android_db = AndroidDB(args.android_db)
 
         def on_progress(processed, inserted):
-            console.print(f"[dim]Progreso: {processed} mensajes procesados ({inserted} insertados)...[/dim]")
+            console.print(f"[dim]{t('cli_merge_progress', processed=processed, inserted=inserted)}[/dim]")
 
         merger = BackupMerger(
             ios_extractor=extractor,
@@ -95,26 +97,26 @@ def cmd_merge(args):
         summary = merger.run()
         android_db.close()
 
-        res_table = Table(title="Resultados de la Fusión")
-        res_table.add_column("Métrica", style="bold")
-        res_table.add_column("Cantidad", justify="right", style="green")
+        res_table = Table(title=t("pipeline_summary_title"))
+        res_table.add_column(t("pipeline_summary_metric"), style="bold")
+        res_table.add_column(t("pipeline_summary_count"), justify="right", style="green")
 
-        res_table.add_row("Chats creados (nuevos)", str(summary.chats_created))
-        res_table.add_row("Chats combinados (existentes)", str(summary.chats_reused))
-        res_table.add_row("Mensajes nuevos insertados", str(summary.messages_inserted))
-        res_table.add_row("Mensajes duplicados omitidos", str(summary.messages_skipped_duplicate))
-        res_table.add_row("Archivos multimedia migrados", str(summary.media_migrated))
+        res_table.add_row(t("pipeline_summary_created"), str(summary.chats_created))
+        res_table.add_row(t("pipeline_summary_reused"), str(summary.chats_reused))
+        res_table.add_row(t("pipeline_summary_inserted"), str(summary.messages_inserted))
+        res_table.add_row(t("pipeline_summary_skipped"), str(summary.messages_skipped_duplicate))
+        res_table.add_row(t("pipeline_summary_media"), str(summary.media_migrated))
 
         console.print(res_table)
-        console.print("\n[bold green]✓ Fusión completada con éxito.[/bold green]")
+        console.print(f"\n[bold green]{t('cli_merge_success')}[/bold green]")
 
     except Exception as e:
-        console.print(f"[bold red]Error durante la fusión:[/bold red] {e}")
+        console.print(f"[bold red]{t('cli_merge_error', e=e)}[/bold red]")
         sys.exit(1)
 
 
 def cmd_pipeline(args):
-    console.print(Panel.fit("[bold magenta]WhatsApp Backup Merger: Pipeline Completo[/bold magenta]"))
+    console.print(Panel.fit(f"[bold magenta]{t('cli_pipeline_panel')}[/bold magenta]"))
 
     ios_path = Path(args.ios)
     android_crypt = Path(args.android_crypt)
@@ -126,11 +128,11 @@ def cmd_pipeline(args):
     merged_crypt = output_dir / "msgstore.db.crypt15"
     media_out = output_dir / "WhatsApp" / "Media"
 
-    console.print("\n[bold]1. Descifrando base de Android...[/bold]")
+    console.print(f"\n[bold]{t('cli_pipeline_step1')}[/bold]")
     decrypt_android_backup(key_input=key, encrypted_path=android_crypt, output_path=decrypted_db)
-    console.print(f"[green]✓ Android descifrado en {decrypted_db}[/green]")
+    console.print(f"[green]{t('pipeline_decrypted_success', path=decrypted_db)}[/green]")
 
-    console.print("\n[bold]2. Uniendo datos de iOS en la base de Android...[/bold]")
+    console.print(f"\n[bold]{t('cli_pipeline_step2')}[/bold]")
     extractor = IOSExtractor(ios_path, is_business=getattr(args, "business", False))
     android_db = AndroidDB(decrypted_db)
     merger = BackupMerger(
@@ -140,85 +142,90 @@ def cmd_pipeline(args):
     )
     summary = merger.run()
     android_db.close()
-    console.print(f"[green]✓ Se insertaron {summary.messages_inserted} mensajes ({summary.messages_skipped_duplicate} duplicados omitidos).[/green]")
+    console.print(f"[green]{t('merge_today_success', count=summary.messages_inserted)}[/green]")
 
-    console.print("\n[bold]3. Re-cifrando base combinada para Android...[/bold]")
+    console.print(f"\n[bold]{t('cli_pipeline_step3')}[/bold]")
     encrypt_android_backup(
         key_input=key,
         decrypted_path=decrypted_db,
         output_path=merged_crypt,
         reference_path=android_crypt,
     )
-    console.print(f"[bold green]✓ Respaldo final generado: {merged_crypt}[/bold green]")
-    console.print(f"[bold green]✓ Archivos multimedia listos en: {media_out}[/bold green]")
-    console.print(
-        "\n[cyan]Para restaurar en Android:\n"
-        f"1. Copia '{merged_crypt}' a tu teléfono en 'Android/media/com.whatsapp/WhatsApp/Databases/msgstore.db.crypt15'\n"
-        f"2. Copia la carpeta de multimedia '{media_out}' a 'Android/media/com.whatsapp/WhatsApp/Media'\n"
-        "3. Inicia sesión en WhatsApp para que detecte y restaure la copia local.[/cyan]"
-    )
+    console.print(f"[bold green]{t('pipeline_encrypt_success', path=merged_crypt)}[/bold green]")
+    console.print(t("cli_pipeline_restore_note", crypt_path=merged_crypt, media_path=media_out))
 
 
 def cmd_wizard(args):
     from wa_backup.tui import start_wizard
-    start_wizard()
+    start_wizard(lang=getattr(args, "lang", None))
 
 
 def main():
+    # Pre-parse language argument if passed
+    for idx, arg in enumerate(sys.argv):
+        if arg in ("--lang", "-l") and idx + 1 < len(sys.argv):
+            set_language(sys.argv[idx + 1])
+            break
+        elif arg.startswith("--lang="):
+            set_language(arg.split("=", 1)[1])
+            break
+
     if len(sys.argv) == 1:
         from wa_backup.tui import start_wizard
         start_wizard()
         return
 
-    parser = argparse.ArgumentParser(description="WhatsApp iOS to Android Backup Merger")
+    parser = argparse.ArgumentParser(description=t("cli_desc"))
+    parser.add_argument("--lang", "-l", choices=["en", "es"], default=None, help="Interface language / Idioma (en/es)")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Wizard
-    p_wiz = subparsers.add_parser("wizard", help="Inicia el asistente interactivo paso a paso (TUI)")
+    p_wiz = subparsers.add_parser("wizard", help=t("cli_wizard_help"))
     p_wiz.set_defaults(func=cmd_wizard)
 
     # Decrypt
-    p_dec = subparsers.add_parser("decrypt", help="Descifra msgstore.db.crypt14/15 de Android")
-    p_dec.add_argument("--key", required=True, help="Ruta al archivo key o cadena hex de 64 caracteres")
-    p_dec.add_argument("--input", required=True, help="Archivo cifrado (msgstore.db.crypt14/15)")
-    p_dec.add_argument("--output", default="msgstore.db", help="Ruta de salida descifrada (default: msgstore.db)")
+    p_dec = subparsers.add_parser("decrypt", help=t("cli_decrypt_help"))
+    p_dec.add_argument("--key", required=True, help="Path to key file or 64-char hex string")
+    p_dec.add_argument("--input", required=True, help="Encrypted file (msgstore.db.crypt14/15)")
+    p_dec.add_argument("--output", default="msgstore.db", help="Decrypted output path (default: msgstore.db)")
     p_dec.set_defaults(func=cmd_decrypt)
 
     # Encrypt
-    p_enc = subparsers.add_parser("encrypt", help="Re-cifra msgstore.db a formato crypt15")
-    p_enc.add_argument("--key", required=True, help="Ruta al archivo key o cadena hex de 64 caracteres")
-    p_enc.add_argument("--input", required=True, help="Base de datos descifrada (msgstore.db)")
-    p_enc.add_argument("--output", default="msgstore.db.crypt15", help="Ruta de salida cifrada")
-    p_enc.add_argument("--reference", help="Archivo cifrado original de referencia (recomendado)")
+    p_enc = subparsers.add_parser("encrypt", help=t("cli_encrypt_help"))
+    p_enc.add_argument("--key", required=True, help="Path to key file or 64-char hex string")
+    p_enc.add_argument("--input", required=True, help="Decrypted database (msgstore.db)")
+    p_enc.add_argument("--output", default="msgstore.db.crypt15", help="Encrypted output path")
+    p_enc.add_argument("--reference", help="Original reference encrypted file (recommended)")
     p_enc.set_defaults(func=cmd_encrypt)
 
     # Inspect iOS
-    p_ins = subparsers.add_parser("inspect-ios", help="Inspecciona respaldo de iOS")
-    p_ins.add_argument("input", help="Ruta a ChatStorage.sqlite o carpeta de respaldo iTunes")
-    p_ins.add_argument("--business", action="store_true", help="Usar WhatsApp Business en lugar de estándar")
+    p_ins = subparsers.add_parser("inspect-ios", help=t("cli_inspect_ios_help"))
+    p_ins.add_argument("input", help="Path to ChatStorage.sqlite or iTunes backup folder")
+    p_ins.add_argument("--business", action="store_true", help="Use WhatsApp Business database")
     p_ins.set_defaults(func=cmd_inspect_ios)
 
     # Merge
-    p_mer = subparsers.add_parser("merge", help="Fusiona respaldo iOS dentro de base Android descifrada")
-    p_mer.add_argument("--ios", required=True, help="Ruta a ChatStorage.sqlite o carpeta de respaldo de iTunes")
-    p_mer.add_argument("--android-db", required=True, help="Ruta a msgstore.db (descifrado)")
-    p_mer.add_argument("--android-media", help="Carpeta de destino para archivos multimedia de Android")
-    p_mer.add_argument("--business", action="store_true", help="Usar WhatsApp Business en lugar de estándar")
+    p_mer = subparsers.add_parser("merge", help=t("cli_merge_help"))
+    p_mer.add_argument("--ios", required=True, help="Path to ChatStorage.sqlite or iTunes backup")
+    p_mer.add_argument("--android-db", required=True, help="Path to decrypted msgstore.db")
+    p_mer.add_argument("--android-media", help="Output directory for Android media files")
+    p_mer.add_argument("--business", action="store_true", help="Use WhatsApp Business")
     p_mer.set_defaults(func=cmd_merge)
 
     # Pipeline
-    p_pipe = subparsers.add_parser("pipeline", help="Flujo completo: descifra, fusiona y re-cifra")
-    p_pipe.add_argument("--ios", required=True, help="Ruta a ChatStorage.sqlite o respaldo iTunes")
-    p_pipe.add_argument("--android-crypt", required=True, help="Archivo msgstore.db.crypt14/15 original")
-    p_pipe.add_argument("--key", required=True, help="Clave de cifrado (archivo o 64 caracteres hex)")
-    p_pipe.add_argument("--output-dir", default="./output", help="Directorio para los archivos generados")
-    p_pipe.add_argument("--business", action="store_true", help="Usar WhatsApp Business en lugar de estándar")
+    p_pipe = subparsers.add_parser("pipeline", help=t("cli_pipeline_help"))
+    p_pipe.add_argument("--ios", required=True, help="Path to ChatStorage.sqlite or iTunes backup")
+    p_pipe.add_argument("--android-crypt", required=True, help="Original msgstore.db.crypt14/15")
+    p_pipe.add_argument("--key", required=True, help="Encryption key (file or 64 hex chars)")
+    p_pipe.add_argument("--output-dir", default="./output", help="Directory for generated output")
+    p_pipe.add_argument("--business", action="store_true", help="Use WhatsApp Business")
     p_pipe.set_defaults(func=cmd_pipeline)
 
     args = parser.parse_args()
+    if getattr(args, "lang", None):
+        set_language(args.lang)
     args.func(args)
 
 
 if __name__ == "__main__":
     main()
-
