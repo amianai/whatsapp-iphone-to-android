@@ -3,13 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "wa-fuse"
-version = "1.0.0"
-description = "Comprehensive WhatsApp backup merger: seamlessly merge iPhone (iOS) and Android chat histories into a single restored database."
+name = "whatsapp-iphone-to-android"
+version = "1.1.0"
+description = "Move WhatsApp from an iPhone to Android without a bridge phone: rebuild a restorable Android backup from a local iPhone backup."
 readme = "README.md"
 license = "MIT"
 authors = [
-    { name = "Elias Portugal", email = "portugal402@gmail.com" }
+    { name = "Elias Portugal", email = "portugal402@gmail.com" },
+    { name = "amianai" },
 ]
 keywords = [
     "whatsapp",
@@ -28,7 +29,11 @@ dependencies = [
     "cryptography>=50.0.2",
     "rich>=15.0.0",
     "wa-crypt-tools>=0.1.0",
+    "iphone-backup-decrypt>=0.11.2",
 ]
+
+[project.optional-dependencies]
+stickers = ["pillow>=11"]
 
 [project.scripts]
 wa-fuse = "wa_fuse.cli:main"
@@ -41,3 +46,6 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.hatch.build.targets.wheel]
+packages = ["wa_fuse"]

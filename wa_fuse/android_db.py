@@ -23,7 +23,12 @@ class AndroidDB:
         # In-memory lookup caches for performance
         self._jid_cache: dict[str, int] = {}
         self._chat_cache: dict[int, int] = {} # jid_row_id -> chat_row_id
-        self._existing_key_ids: set[str] = set()
+        # (chat_row_id, from_me, key_id) of every message, and the highest
+        # message _id that was already in the database when it was opened.
+        # Duplicate checks only ever look at those pre-existing rows: messages
+        # inserted by this run are never compared by time with each other.
+        self._existing_keys: set[tuple[int, int, str]] = set()
+        self._preexisting_max_id = 0
 
         self._load_caches()
 
@@ -50,10 +55,15 @@ class AndroidDB:
             for row in self.cursor.fetchall():
                 self._chat_cache[row[1]] = row[0]
 
-        # Preload key_ids
+        # Preload message keys
         if "message" in self.tables and "key_id" in self.tables["message"]:
-            self.cursor.execute("SELECT key_id FROM message WHERE key_id IS NOT NULL")
-            self._existing_key_ids = {row[0] for row in self.cursor.fetchall()}
+            self.cursor.execute(
+                "SELECT chat_row_id, from_me, key_id FROM message WHERE key_id IS NOT NULL"
+            )
+            self._existing_keys = {(row[0], row[1], row[2]) for row in self.cursor.fetchall()}
+        if "message" in self.tables:
+            self.cursor.execute("SELECT COALESCE(MAX(_id), 0) FROM message")
+            self._preexisting_max_id = self.cursor.fetchone()[0]
 
         # Create temporary index to make timestamp deduplication instant
         if "message" in self.tables:
@@ -117,12 +127,39 @@ class AndroidDB:
         self._jid_cache[raw_jid] = jid_id
         return jid_id
 
+    def map_lid(self, lid_row_id: int, jid_row_id: int, chat: bool = False) -> None:
+        """Links a contact's @lid to its phone JID, as WhatsApp does in jid_map.
+
+        Modern WhatsApp opens a 1-on-1 chat through the contact's @lid: without
+        this link it starts a new, empty @lid chat next to the imported one.
+        A chat keyed by the @lid also gets its lid_chat_state row.
+        """
+        if lid_row_id <= 0 or jid_row_id <= 0:
+            return
+        if "jid_map" in self.tables:
+            self.cursor.execute(
+                "INSERT OR IGNORE INTO jid_map (lid_row_id, jid_row_id, sort_id) "
+                "SELECT ?, ?, COALESCE(MAX(sort_id), 0) + 1 FROM jid_map",
+                (lid_row_id, jid_row_id),
+            )
+        if chat and "lid_chat_state" in self.tables:
+            self.cursor.execute(
+                "INSERT OR IGNORE INTO lid_chat_state (jid_row_id, is_pn_shared) VALUES (?, 1)",
+                (lid_row_id,),
+            )
+
+    def archive_chat(self, chat_row_id: int) -> None:
+        """Marks an existing chat as archived."""
+        if chat_row_id > 0 and "archived" in self.tables.get("chat", set()):
+            self.cursor.execute("UPDATE chat SET archived = 1 WHERE _id = ?", (chat_row_id,))
+
     def get_or_create_chat(
         self,
         jid_row_id: int,
         subject: str | None = None,
         is_group: bool = False,
         timestamp_ms: int | None = None,
+        archived: bool = False,
     ) -> int:
         """Gets or creates a conversation row in the chat table."""
         if jid_row_id <= 0:
@@ -145,7 +182,7 @@ class AndroidDB:
         if "hidden" in cols:
             fields["hidden"] = 0
         if "archived" in cols:
-            fields["archived"] = 0
+            fields["archived"] = 1 if archived else 0
         if "unseen_message_count" in cols:
             fields["unseen_message_count"] = 0
         if "unseen_important_message_count" in cols:
@@ -179,32 +216,45 @@ class AndroidDB:
         timestamp_ms: int,
         text: str | None,
     ) -> bool:
-        """Checks if a message already exists by key_id or by close timestamp + chat + direction."""
-        if key_id and key_id in self._existing_key_ids:
+        """True if this message is already in the chat.
+
+        A message is a duplicate when the same chat already holds its key_id
+        (WhatsApp's message id is the same on every device), or when a message
+        that was in the database before this run has the same direction, the
+        same text and a timestamp within 2 seconds.
+
+        Messages inserted during this run are only matched by key_id: albums
+        and quick replies are often sent within the same second.
+        """
+        if key_id and (chat_row_id, 1 if from_me else 0, key_id) in self._existing_keys:
             return True
 
-        if "message" not in self.tables:
+        if "message" not in self.tables or not self._preexisting_max_id or not text:
             return False
 
-        # Fuzzy check: timestamp within 2000 ms (2 seconds), same chat, same direction
-        min_ts = timestamp_ms - 2000
-        max_ts = timestamp_ms + 2000
-
         text_col = "text_data" if "text_data" in self.tables["message"] else "data"
-        if text_col in self.tables["message"]:
-            sql = f"""
-                SELECT _id FROM message
-                WHERE chat_row_id = ?
-                AND from_me = ?
-                AND timestamp BETWEEN ? AND ?
-                LIMIT 1
-            """
-            self.cursor.execute(sql, (chat_row_id, 1 if from_me else 0, min_ts, max_ts))
-            row = self.cursor.fetchone()
-            if row:
-                return True
-
-        return False
+        if text_col not in self.tables["message"]:
+            return False
+        self.cursor.execute(
+            f"""
+            SELECT _id FROM message
+            WHERE chat_row_id = ?
+            AND from_me = ?
+            AND timestamp BETWEEN ? AND ?
+            AND _id <= ?
+            AND {text_col} = ?
+            LIMIT 1
+            """,
+            (
+                chat_row_id,
+                1 if from_me else 0,
+                timestamp_ms - 2000,
+                timestamp_ms + 2000,
+                self._preexisting_max_id,
+                text,
+            ),
+        )
+        return self.cursor.fetchone() is not None
 
     def insert_message(
         self,
@@ -216,6 +266,7 @@ class AndroidDB:
         status: int = 0,
         key_id: str | None = None,
         sender_jid_row_id: int = 0,
+        starred: bool = False,
     ) -> int:
         """Inserts a new message row into the Android message table."""
         if "message" not in self.tables:
@@ -252,7 +303,7 @@ class AndroidDB:
             # Standard WhatsApp status (13 = read/seen, 4 = sent/delivered)
             fields["status"] = 13 if not from_me else 4
         if "starred" in cols:
-            fields["starred"] = 0
+            fields["starred"] = 1 if starred else 0
         if "broadcast" in cols:
             fields["broadcast"] = 0
         if "recipient_count" in cols:
@@ -276,7 +327,7 @@ class AndroidDB:
         if "sort_id" in cols:
             self.cursor.execute("UPDATE message SET sort_id = ? WHERE _id = ?", (msg_id, msg_id))
 
-        self._existing_key_ids.add(key_id)
+        self._existing_keys.add((chat_row_id, 1 if from_me else 0, key_id))
         return msg_id
 
     def insert_message_media(
@@ -289,6 +340,8 @@ class AndroidDB:
         caption: str | None = None,
         width: int = 0,
         height: int = 0,
+        duration: int = 0,
+        file_hash: str | None = None,
     ):
         """Inserts media metadata into message_media table with full WhatsApp Android parity."""
         if "message_media" not in self.tables:
@@ -344,9 +397,9 @@ class AndroidDB:
         if "media_name" in cols and caption:
             fields["media_name"] = caption
         if "file_hash" in cols:
-            fields["file_hash"] = "dummy_hash_placeholder="
+            fields["file_hash"] = file_hash or "dummy_hash_placeholder="
         if "media_duration" in cols:
-            fields["media_duration"] = 0
+            fields["media_duration"] = duration
         if "page_count" in cols:
             fields["page_count"] = 0
         if "mute_video" in cols:
@@ -359,54 +412,84 @@ class AndroidDB:
         sql = f"INSERT OR REPLACE INTO message_media ({', '.join(keys)}) VALUES ({placeholders})"
         self.cursor.execute(sql, [fields[k] for k in keys])
 
+    def renumber_sort_ids(self):
+        """Gives every message a sort_id that follows its timestamp.
+
+        WhatsApp orders a chat by sort_id. Rows inserted by this run get a
+        sort_id equal to their _id, which puts years of iPhone history after
+        any message the template backup already held (for instance messages
+        delivered right after registering the number). Renumbering by
+        (timestamp, _id) restores chronological order everywhere.
+        """
+        if "message" not in self.tables or "sort_id" not in self.tables["message"]:
+            return
+        # Nothing to do when sort_id already follows time (e.g. an empty template).
+        self.cursor.execute(
+            """
+            SELECT 1 FROM (
+                SELECT timestamp, LAG(timestamp) OVER (ORDER BY sort_id, _id) AS prev_ts
+                FROM message
+            )
+            WHERE timestamp < prev_ts
+            LIMIT 1
+            """
+        )
+        if self.cursor.fetchone() is None:
+            return
+        self.cursor.execute("DROP TABLE IF EXISTS temp.wa_fuse_sort")
+        self.cursor.execute(
+            """
+            CREATE TEMP TABLE wa_fuse_sort AS
+            SELECT _id, ROW_NUMBER() OVER (ORDER BY timestamp, _id) AS new_sort
+            FROM message
+            """
+        )
+        self.cursor.execute("CREATE INDEX temp.wa_fuse_sort_id ON wa_fuse_sort (_id)")
+        # Two passes through negative values, so the update never collides with
+        # an old sort_id if the schema has a unique index on it.
+        self.cursor.execute(
+            """
+            UPDATE message
+            SET sort_id = -(SELECT new_sort FROM wa_fuse_sort WHERE wa_fuse_sort._id = message._id)
+            """
+        )
+        self.cursor.execute("UPDATE message SET sort_id = -sort_id")
+        self.cursor.execute("DROP TABLE temp.wa_fuse_sort")
+
     def refresh_chat_metadata(self):
-        """Updates last_message_row_id and sort_timestamp for all chats based on latest messages."""
+        """Points every chat at its latest message (by timestamp) and its sort_id."""
         if "chat" not in self.tables or "message" not in self.tables:
             return
 
         chat_cols = self.tables["chat"]
+        has_sort = "sort_id" in self.tables["message"]
 
-        # Find latest message for each chat
-        sql = """
-            SELECT chat_row_id, _id, MAX(timestamp) as max_ts
-            FROM message
-            WHERE chat_row_id IS NOT NULL AND chat_row_id > 0
-            GROUP BY chat_row_id
+        # Latest message for each chat; ties on timestamp go to the highest _id.
+        sql = f"""
+            SELECT chat_row_id, _id, timestamp, {"sort_id" if has_sort else "_id"}
+            FROM (
+                SELECT chat_row_id, _id, timestamp, {"sort_id," if has_sort else ""}
+                       ROW_NUMBER() OVER (PARTITION BY chat_row_id ORDER BY timestamp DESC, _id DESC) AS rn
+                FROM message
+                WHERE chat_row_id IS NOT NULL AND chat_row_id > 0
+            )
+            WHERE rn = 1
         """
         self.cursor.execute(sql)
-        for row in self.cursor.fetchall():
-            chat_id = row[0]
-            latest_msg_id = row[1]
-            max_ts = row[2]
-
-            updates = []
-            params = []
-            if "sort_timestamp" in chat_cols:
-                updates.append("sort_timestamp = ?")
-                params.append(max_ts)
-            if "last_message_row_id" in chat_cols:
-                updates.append("last_message_row_id = ?")
-                params.append(latest_msg_id)
-            if "display_message_row_id" in chat_cols:
-                updates.append("display_message_row_id = ?")
-                params.append(latest_msg_id)
-            if "last_message_sort_id" in chat_cols:
-                updates.append("last_message_sort_id = ?")
-                params.append(latest_msg_id)
-            if "display_message_sort_id" in chat_cols:
-                updates.append("display_message_sort_id = ?")
-                params.append(latest_msg_id)
-            if "last_read_message_sort_id" in chat_cols:
-                updates.append("last_read_message_sort_id = ?")
-                params.append(latest_msg_id)
-            if "last_read_receipt_sent_message_sort_id" in chat_cols:
-                updates.append("last_read_receipt_sent_message_sort_id = ?")
-                params.append(latest_msg_id)
-
+        for chat_id, latest_msg_id, max_ts, latest_sort_id in self.cursor.fetchall():
+            values = {
+                "sort_timestamp": max_ts,
+                "last_message_row_id": latest_msg_id,
+                "display_message_row_id": latest_msg_id,
+                "last_message_sort_id": latest_sort_id,
+                "display_message_sort_id": latest_sort_id,
+                "last_read_message_sort_id": latest_sort_id,
+                "last_read_receipt_sent_message_sort_id": latest_sort_id,
+            }
+            updates = [(col, val) for col, val in values.items() if col in chat_cols]
             if updates:
-                params.append(chat_id)
-                up_sql = f"UPDATE chat SET {', '.join(updates)} WHERE _id = ?"
-                self.cursor.execute(up_sql, params)
+                up_sql = f"UPDATE chat SET {', '.join(f'{c} = ?' for c, _ in updates)} WHERE _id = ?"
+                self.cursor.execute(up_sql, [v for _, v in updates] + [chat_id])
 
     def commit(self):
         """Commits the current transaction."""
