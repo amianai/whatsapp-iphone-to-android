@@ -33,3 +33,12 @@ Media/
 Thumbs.db
 .idea/
 .vscode/
+
+# Personal exports and working folders of a migration (never commit them)
+*.vcf
+*.csv
+*.plist
+staging/
+output*/
+Media/
+Manifest.*

@@ -1,205 +1,179 @@
-# ⚡ wa-fuse: WhatsApp Backup Merger (iOS ➔ Android)
+# whatsapp-iphone-to-android
 
-<p align="center">
-  <a href="README.md"><b>🇺🇸 English</b></a> • <a href="README.es.md"><b>🇪🇸 Español</b></a>
-</p>
+Move your WhatsApp chats from an **iPhone to an Android phone without a bridge phone, without
+Google's "Copy apps & data" tool and without paid software** — everything runs locally on your computer.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.12+-blue.svg?style=flat-square&logo=python" alt="Python 3.12+">
-  <img src="https://img.shields.io/badge/WhatsApp-Crypt14%20%2F%20Crypt15-25D366.svg?style=flat-square&logo=whatsapp" alt="Crypt14 / Crypt15">
-  <img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square&logo=open-source-initiative" alt="License MIT">
-  <img src="https://img.shields.io/badge/Tests-Passing-brightgreen.svg?style=flat-square" alt="Tests Passing">
-</p>
+The tool reads WhatsApp's database and media from a local iPhone backup, merges them into a real
+backup made by WhatsApp on the Android phone (encrypted with a 64-digit key), re-encrypts the result
+with the same header and lets WhatsApp restore it as if it were its own backup.
 
-An open-source, standalone toolkit designed to **merge WhatsApp chat histories from an iPhone (iOS) into an existing Android backup**, unifying multi-year conversation histories into a single, clean database ready to be restored on Android — **without overwriting existing chats and bypassing the notorious 69% restoration crash.**
+It started as a fork of [pl402/wa-fuse](https://github.com/pl402/wa-fuse) and fixes the problems found
+while doing a real migration: lost messages, chats that would not open, distorted photos, duplicated
+HD media and more (see [What was fixed](#what-was-fixed-compared-to-wa-fuse-100)).
 
----
-
-## 💡 Why Does This Project Exist?
-
-1. **Official WhatsApp Transfer Overwrites Data:** The official "Move to Android" tool only works on a freshly formatted or unconfigured phone. If you have been using Android for weeks or months and want to bring over your 10-year iPhone history, the official tool wipes your current Android chats.
-2. **Paid Tools Are Expensive and Risky:** Commercial proprietary tools charge $30–$50/year, require root or third-party desktop drivers, and handle your private decrypted conversations on closed servers.
-3. **The "69% Restore Bug":** Most legacy community scripts fail on modern WhatsApp versions. During restoration on Android, progress freezes or crashes at **69%**, permanently failing the restoration.
+> **Unofficial project.** Not affiliated with, endorsed by or connected to WhatsApp or Meta.
+> Use it only on your own data, read the [risks](#risks) first and keep your iPhone untouched
+> until you have checked everything on the new phone.
 
 ---
 
-## 🛠️ The "69% Restore Bug" Solved
+## Why
 
-At approximately ~69% progress, WhatsApp for Android concludes sequential message insertion and executes three internal maintenance tasks:
-1. Contact & JID validation to construct the thread list (`JidFactory`).
-2. Media metadata reindexing (`message_media`).
-3. Thread collision and multi-account migration (`local_chat_db_lid_migration`).
+WhatsApp's official iPhone → Android transfer needs Google's setup tool (or a cable transfer during
+setup). On phones without it — for example **GrapheneOS** — or when the wireless transfer keeps failing
+halfway, there is no official path. Commercial tools exist, but they read all your chats in clear text.
 
-**wa-fuse** eliminates all root causes of the 69% crash:
+This project does the migration offline, with open-source tools, and was tested end to end on
+**iOS 26.6 → WhatsApp for Android 2.26 on GrapheneOS (Android 17)**, with a macOS 15 computer and a
+real account of several hundred thousand messages and ~30 GB of media.
 
-| Failure Cause | What Happened | How We Fix It |
-| :--- | :--- | :--- |
-| **Invalid `@status` JIDs** | iOS saves contact stories in `ZWACHATSESSION` (`ZSESSIONTYPE = 3`). Android crashes with `InvalidJidException: Invalid server status`. | Filters out status sessions and enforces valid Android JID servers (`s.whatsapp.net`, `g.us`, `status@broadcast`). |
-| **LID vs. Phone Thread Collisions** | Modern iOS indexes 1-on-1 chats using opaque `@lid` identifiers instead of phone numbers. Android creates duplicate threads for existing contacts and crashes. | Automatically resolves `@lid` sessions to canonical phone numbers (`ZCONTACTIDENTIFIER`) and unifies them into existing Android chats. |
-| **Missing `message_media` Rows** | If an iPhone photo/video file was missing, old scripts skipped inserting a row in `message_media`. Android throws `NullPointerException` during media indexing. | Enforces 100% coverage in `message_media` for every media message with proper transfer flags and dummy hashes. |
-| **Relative Path Prefixes** | Android expects media paths relative to its root folder (e.g., `Media/WhatsApp Images/...`). | Sanitizes and prepends `Media/` to all media file paths. |
-| **Multi-Account & Control Flags** | Modern WhatsApp Android requires `account_jid_row_id = jid_row_id` and non-null values for `broadcast`, `origin`, and `sort_id`. | Generates fully populated schema values compliant with Android's `available_message_view` and `chat_view`. |
+## What is transferred
 
----
+| Transferred | Not transferred |
+|---|---|
+| Text messages, in order, in every 1-on-1 chat, group and community | Reactions |
+| Photos, videos, voice notes, documents, GIFs, stickers (original names, dates, real hashes) | Quoted-reply preview box (the message itself is there) |
+| Captions, starred messages, archived chats | Call history and call bubbles |
+| Shared contacts and locations (as readable text) | Status updates, channel posts, broadcast lists |
+| View-once media as a text placeholder (the files no longer exist) | Polls (only their text, if any) |
+| A `.vcf` of people you only knew on WhatsApp (optional) | Media that the iPhone never downloaded |
 
-## ✨ Features
+Your sticker *collection* (installed packs and favourites) is not part of the chats: a separate
+[sticker tool](#stickers) turns it into Android sticker packs.
 
-* **🔄 Bidirectional History Merge:** Merges individual and group chats from iPhone (`ChatStorage.sqlite`) into Android (`msgstore.db`).
-* **⏱️ Epoch Translation:** Automatically converts Apple Core Data Cocoa timestamps (seconds since 2001) into Unix timestamps in milliseconds (since 1970).
-* **🧹 Intelligent Deduplication:** Matches messages by `stanza_id` (`key_id`), sender, timestamp, and content to avoid duplicate messages.
-* **🔐 Crypt14 & Crypt15 Encryption:** Natively decrypts and re-encrypts Android backups using modern 64-hex root keys, cloning official Protobuf varint headers.
-* **📥 Zero-Loss Incremental Merge:** Allows you to extract and incorporate messages received on your phone *today* before restoring, preventing any message loss.
-* **📸 Media Migration:** Copies photos, videos, voice notes, audio, GIFs, and documents into the official Android directory structure (`Android/media/com.whatsapp/WhatsApp/Media/`).
-* **🧙 Interactive TUI Wizard:** Step-by-step terminal UI with automatic USB/MTP/ADB device detection, clipboard key integration, and integrity diagnostics.
-* **🌐 Bilingual Support:** Native English and Spanish user interface and documentation with automatic locale detection.
+## How it works
 
----
+```
+iPhone ──idevicebackup2──▶ encrypted local backup ──wa-fuse──▶ ChatStorage.sqlite + media
+                                                                   │
+Android phone ── WhatsApp backup (64-digit key) ──▶ msgstore.db ──┤ merge, fix, re-encrypt
+                                                                   ▼
+                     msgstore.db.crypt15 + WhatsApp/Media ──adb push──▶ restore on the phone
+```
 
-## 📋 Prerequisites
+1. Make an **encrypted** local backup of the iPhone (Finder or `idevicebackup2`).
+2. Register WhatsApp on Android, turn on the end-to-end encrypted backup with a **64-digit key** and
+   pull the backup file: it is the template that WhatsApp will accept back.
+3. Run `wa-fuse pipeline`: it decrypts only WhatsApp's files from the iPhone backup, inserts every
+   message into the Android database, copies the media into the Android folder layout and
+   re-encrypts the database with the template's header.
+4. Clear WhatsApp's data on the phone, push the files, register again and choose **Restore**.
 
-You will need:
+The complete, tested procedure — including a dry run with a second phone number — is in
+**[docs/migration-guide.md](docs/migration-guide.md)**.
 
-1. **iPhone WhatsApp Backup:**
-   * An unencrypted local iPhone backup containing `ChatStorage.sqlite` and the `Message` media directory, OR a standalone `ChatStorage.sqlite` file.
-2. **Android WhatsApp Backup:**
-   * Your `msgstore.db.crypt14` or `msgstore.db.crypt15` file (from `Android/media/com.whatsapp/WhatsApp/Databases/`).
-3. **64-Digit Hex Encryption Key:**
-   * Generated when enabling "End-to-End Encrypted Backup" in WhatsApp (**Settings > Chats > Chat backup > End-to-end encrypted backup**).
-4. **Python 3.12+** (with [uv](https://github.com/astral-sh/uv) recommended).
+## Requirements
 
----
-
-## 🚀 Quick Start
-
-### 1. Installation
-
-Clone this repository and install dependencies using `uv` (or standard `pip`):
+* macOS or Linux with Python 3.12+ and [uv](https://docs.astral.sh/uv/)
+* [libimobiledevice](https://libimobiledevice.org) (`idevicebackup2`) for the iPhone backup
+* Android platform tools (`adb`) and USB debugging on the phone
+* `ffmpeg`, used to recognise the standard copies of photos and videos sent in HD
+* Free space: the iPhone backup (an external drive is fine) plus about the size of WhatsApp on the
+  iPhone on the internal disk
+* Recommended: a **second phone number** for the dry run
 
 ```bash
-git clone https://github.com/pl402/wa-fuse.git
-cd wa-fuse
-
-# Using uv (fastest)
+brew install libimobiledevice android-platform-tools uv ffmpeg   # macOS
 uv sync
-
-# Or using standard pip
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+uv run pytest -q tests                                           # all tests must pass
 ```
 
-### 2. Run the Interactive Wizard (Recommended)
-
-Launch the interactive terminal assistant:
+## Quick start
 
 ```bash
-./wa-fuse
-# or: uv run wa-fuse
+# what is in the iPhone backup (decrypts only WhatsApp's files into the staging folder)
+IOS_BACKUP_PASSWORD=... uv run wa-fuse inspect-ios /path/to/iphone-backup --staging-dir ~/wa/staging
 
-# Explicitly choose language (English / Spanish):
-./wa-fuse --lang en
-./wa-fuse --lang es
-```
-
-> **Tip:** You can also press `L` in the wizard's main menu at any time to instantly toggle between English and Spanish.
-
-The wizard guides you through:
-1. Detecting or selecting your iPhone backup and Android `.crypt15`.
-2. Decrypting, sanitizing, merging, and re-encrypting the combined database.
-3. Automatically detecting your connected Android phone via USB (MTP or ADB).
-4. Transferring the database and media files to the phone.
-5. Verifying database integrity and copying your 64-digit key to the clipboard.
-
----
-
-## 💻 CLI Usage (Headless / Advanced)
-
-If you prefer command-line automation:
-
-### Full Pipeline in One Command
-```bash
+# rebuild the Android backup (add --chats "name1,name2" for a dry run on a few chats)
+export WA_BACKUP_KEY=<64 hex digits> IOS_BACKUP_PASSWORD=...
 uv run wa-fuse pipeline \
-  --ios /path/to/ChatStorage.sqlite \
-  --android-crypt /path/to/msgstore.db.crypt15 \
-  --key "YOUR_64_CHARACTER_HEX_KEY" \
-  --output-dir ./output
+  --ios /path/to/iphone-backup --staging-dir ~/wa/staging \
+  --android-crypt ~/wa/template.crypt15 --key "$WA_BACKUP_KEY" \
+  --output-dir ~/wa/output --move-media
+
+# copy it to the phone after `adb shell pm clear com.whatsapp`
+tools/push_media.sh ~/wa/output
 ```
 
-### Step-by-Step Commands
+`--move-media` moves the media out of the staging folder instead of copying them, so the internal
+disk needs the WhatsApp size only once. `output/report.json` lists, for every chat, how many messages
+were read, inserted or skipped and how many media files were copied or missing.
 
-1. **Decrypt Android Backup:**
-   ```bash
-   uv run wa-fuse decrypt \
-     --key "YOUR_64_CHARACTER_HEX_KEY" \
-     --input msgstore.db.crypt15 \
-     --output msgstore_decrypted.db
-   ```
+Other commands: `decrypt` / `encrypt` (`.crypt14/15`), `merge`, `export-contacts`
+(`uv run wa-fuse --help`). The command keeps the upstream name `wa-fuse`.
 
-2. **Merge iPhone Database into Android SQLite:**
-   ```bash
-   uv run wa-fuse merge \
-     --ios /path/to/ChatStorage.sqlite \
-     --android-db msgstore_decrypted.db \
-     --android-media ./output/WhatsApp/Media
-   ```
+## What was fixed compared to wa-fuse 1.0.0
 
-3. **Re-Encrypt Merged Database to crypt15:**
-   ```bash
-   uv run wa-fuse encrypt \
-     --key "YOUR_64_CHARACTER_HEX_KEY" \
-     --input msgstore_decrypted.db \
-     --output ./output/msgstore.db.crypt15 \
-     --reference msgstore.db.crypt15
-   ```
+Every fix is covered by a test in `tests/test_migration_fixes.py` or `tests/test_cli_pipeline.py`.
 
----
+* **1-on-1 chats did not open on recent WhatsApp versions.** WhatsApp now keys personal chats by the
+  contact's `@lid` identity: a chat restored under the phone number showed its preview in the list but
+  opened empty, and WhatsApp created a new empty chat. Chats are now created under the `@lid` taken
+  from the iPhone database, with the `jid_map` link to the phone number, like WhatsApp does.
+* **Messages lost as false duplicates.** Messages of the same chat sent within 2 seconds (albums, quick
+  replies) were dropped: an album of 5 photos became 1.
+* **Photos and videos distorted** in WhatsApp's viewer: width and height were swapped (iOS stores the
+  height in `ZLATITUDE` and the width in `ZLONGITUDE`, rotated videos included).
+* **HD photos and videos appeared twice.** WhatsApp stores a standard copy and an HD copy as two
+  messages and shows one bubble; the standard copy is now left out, only when the two pictures
+  (first frame for videos) really match.
+* **View-once media** (newer iOS message types 38/39/53) became empty bubbles or were dropped: they
+  are now a short text placeholder, so replies still make sense. Round video messages are kept.
+* **Media from Finder backups** lost their names and extensions; MIME types were read from the wrong
+  field; file dates, SHA-256 hashes, durations and the `Sent/` folder are now correct.
+* Shared **contacts and locations** were swapped; they now become readable text. GIFs and stickers are
+  mapped; system and deleted messages are skipped instead of becoming empty bubbles.
+* **Encrypted iPhone backups** are supported (only WhatsApp's files are decrypted, incrementally) and
+  the `ChatStorage.sqlite-wal` file is read, otherwise the newest messages were missing.
+* Chronological order is guaranteed (`sort_id`), **archived chats** stay archived, `--chats` limits a
+  run to some chats, `report.json` gives per-chat counts, `export-contacts` writes a `.vcf`.
 
-## 📲 How to Restore on Your Android Phone
+## Stickers
 
-Follow these steps carefully to ensure Android 14/15 and WhatsApp read the local backup properly:
-
-1. **Clear WhatsApp Storage on the Phone:**
-   * Go to: **Settings > Apps > WhatsApp > Storage and cache > Clear storage**.
-   * *(⚠️ Note: In Android 13+, clearing app storage deletes the `com.whatsapp` directory. Therefore, always copy your backup file AFTER clearing storage).*
-
-2. **Grant Permissions in Advance:**
-   * Go to: **Settings > Apps > WhatsApp > Permissions**.
-   * Manually enable: **Photos and videos**, **Contacts**, and **Notifications**.
-   *(This ensures WhatsApp has immediate storage read permissions upon first launch).*
-
-3. **Transfer the Restored File:**
-   * Copy the resulting `msgstore.db.crypt15` file into:
-     ```
-     Internal Storage/Android/media/com.whatsapp/WhatsApp/Databases/msgstore.db.crypt15
-     ```
-   * *(Optional: Copy the `WhatsApp/Media/` folder to `Internal Storage/Android/media/com.whatsapp/WhatsApp/Media/`)*.
-
-4. **Open WhatsApp & Restore:**
-   * Open WhatsApp, select language, accept terms, and verify your phone number via SMS.
-   * **⚠️ Crucial:** If WhatsApp asks to look for backups on Google Drive, tap **SKIP**.
-   * WhatsApp will immediately scan internal storage and display:
-     **"Local backup found"** (Date: Today, Size: ~100–300 MB).
-   * Tap **Restore** and enter your **64-digit hex key**.
-   * The progress bar will advance smoothly past 69% and reach **100%**.
-
----
-
-## 🧪 Testing
-
-The test suite validates schema compatibility, JID sanitization, encryption roundtrips, and duplicate avoidance:
+WhatsApp on Android cannot import loose stickers or favourites, but it accepts sticker packs offered
+by an app. `tools/stickers/` turns the iPhone collection into such an app:
 
 ```bash
-uv run pytest tests/
+uv sync --extra stickers && brew install webp
+IOS_BACKUP_PASSWORD=... uv run python tools/stickers/ios_stickers_to_android.py /path/to/iphone-backup ~/wa/sticker-assets
+tools/stickers/build_sticker_app.sh ~/wa/sticker-assets com.yourname.iphonestickers
+adb install --user 0 <the APK printed by the script>
 ```
 
----
+Installed packs keep their name; stickers that belong to no pack (favourites, recents, your own)
+become "Favourites from iPhone". Everything is resized, compressed and split to WhatsApp's limits
+(512×512, 100 KB static / 500 KB animated, 3–30 per pack, static and animated never mixed).
+Official WhatsApp packs keep no files on the iPhone: download them again from WhatsApp's store.
+Open the app, tap **+** on every pack and confirm **Add to WhatsApp**. Keep the app installed:
+WhatsApp reads the stickers from it.
 
-## 📄 License
+## Safety rules
 
-Distributed under the [MIT License](LICENSE). Free for personal and commercial use.
+* **Never uninstall WhatsApp or delete its data on the iPhone** until the new phone has been checked:
+  the iPhone keeps a full copy even after the account moves.
+* Make the iPhone backup **encrypted**; keep decrypted files (`staging`, `output`) on the computer's
+  internal disk and delete them at the end.
+* Pass the backup password and the 64-digit key through `IOS_BACKUP_PASSWORD` and `WA_BACKUP_KEY`,
+  never in files you keep. Save the 64-digit key in your password manager.
+* Do not request WhatsApp verification codes repeatedly: after a few attempts registration is blocked
+  for hours.
+* When WhatsApp asks to restore from Google Drive or to transfer from the old phone, **skip** it.
 
----
+## Risks
 
-## 🤝 Contributing
+* WhatsApp might refuse a rebuilt backup or change its database format in an update. Do the dry run
+  with a second number and the final migration right after it, with the same WhatsApp version.
+* Restoring a modified backup is outside WhatsApp's supported paths and may conflict with its terms
+  of service. No account suspension was observed, but it cannot be ruled out.
+* Messages that reach the iPhone after its last backup are not migrated: make a fresh (incremental)
+  backup right before the final migration.
 
-Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/pl402/wa-fuse/issues).
+## Credits and license
+
+* [pl402/wa-fuse](https://github.com/pl402/wa-fuse) by Elias Portugal — the original merger (MIT).
+* [ElDavoo/wa-crypt-tools](https://github.com/ElDavoo/wa-crypt-tools) — `.crypt15` encryption.
+* [jsharkey13/iphone_backup_decrypt](https://github.com/jsharkey13/iphone_backup_decrypt) — encrypted iPhone backups.
+* [KnugiHK/WhatsApp-Chat-Exporter](https://github.com/KnugiHK/WhatsApp-Chat-Exporter) — reference for the iOS database.
+* [WhatsApp/stickers](https://github.com/WhatsApp/stickers) — official sample sticker app, built by the sticker tool.
+
+MIT license, see [LICENSE](LICENSE). WhatsApp is a trademark of WhatsApp LLC.
